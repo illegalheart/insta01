@@ -1,0 +1,56 @@
+name: Publish Instagram Post
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "posts/*.json"
+  workflow_dispatch:
+    inputs:
+      post_file:
+        description: "Post JSON file to publish"
+        required: true
+        default: "posts/test-post.json"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Find posts to publish
+        id: posts
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_POST_FILE: ${{ inputs.post_file }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            FILES="$INPUT_POST_FILE"
+          else
+            FILES=$(git diff --diff-filter=A --name-only HEAD^ HEAD -- 'posts/*.json')
+          fi
+
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Publish approved posts
+        if: steps.posts.outputs.files != ''
+        shell: bash
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+          META_API_VERSION: ${{ vars.META_API_VERSION }}
+        run: |
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            node scripts/publish-instagram.mjs "$file"
+          done <<< "${{ steps.posts.outputs.files }}"
