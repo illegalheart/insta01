@@ -8,30 +8,33 @@ if (!postFile) {
 
 const post = JSON.parse(fs.readFileSync(postFile, "utf8"));
 
-if (post.status !== "approved") {
-  console.log(`Skipped ${postFile}: status is not approved.`);
-  process.exit(0);
+if (!post.caption || !post.image_path) {
+  throw new Error(`${postFile}: caption and image_path are required.`);
 }
 
-if (!post.caption || !post.image_url) {
-  throw new Error(`${postFile}: caption and image_url are required.`);
+if (!post.image_path.startsWith("img/") || post.image_path.includes("..")) {
+  throw new Error(`${postFile}: image_path must point to a file inside img/.`);
 }
 
-if (post.image_url.includes("example.com")) {
-  throw new Error(`${postFile}: replace the example image URL before publishing.`);
+if (!fs.existsSync(post.image_path)) {
+  throw new Error(`${postFile}: image file does not exist: ${post.image_path}`);
 }
 
 const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
 const instagramUserId = process.env.INSTAGRAM_USER_ID;
 const apiVersion = process.env.META_API_VERSION;
+const repository = process.env.GITHUB_REPOSITORY;
+const commitSha = process.env.GITHUB_SHA;
 
-if (!accessToken || !instagramUserId || !apiVersion) {
+if (!accessToken || !instagramUserId || !apiVersion || !repository || !commitSha) {
   throw new Error(
-    "INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_USER_ID, and META_API_VERSION are required."
+    "INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_USER_ID, META_API_VERSION, GITHUB_REPOSITORY, and GITHUB_SHA are required."
   );
 }
 
 const baseUrl = `https://graph.instagram.com/${apiVersion}`;
+const encodedImagePath = post.image_path.split("/").map(encodeURIComponent).join("/");
+const imageUrl = `https://raw.githubusercontent.com/${repository}/${commitSha}/${encodedImagePath}`;
 
 async function graphRequest(path, options = {}) {
   const response = await fetch(`${baseUrl}/${path}`, options);
@@ -44,10 +47,12 @@ async function graphRequest(path, options = {}) {
   return result;
 }
 
+console.log(`Publishing ${postFile} with ${imageUrl}`);
+
 const container = await graphRequest(`${instagramUserId}/media`, {
   method: "POST",
   body: new URLSearchParams({
-    image_url: post.image_url,
+    image_url: imageUrl,
     caption: post.caption,
     access_token: accessToken
   })
