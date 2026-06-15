@@ -1,5 +1,5 @@
 {
-  "caption": "Instagram APIからのテスト投稿です。",
-  "image_url": "https://example.com/replace-with-public-image.jpg",
-  "status": "draft"
+  "caption": "Hello world!\n\nはじめての投稿です。\nこれから少しずつ、取り組みや新しい発見を発信していきます。よろしくお願いします！\n\n#初投稿 #HelloWorld #はじめまして",
+  "image_url": "https://raw.githubusercontent.com/illegalheart/insta01/main/first-instagram-post.png",
+  "status": "approved"
 }
