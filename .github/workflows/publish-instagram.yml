@@ -6,18 +6,12 @@ on:
       - main
     paths:
       - "posts/*.json"
-  workflow_dispatch:
-    inputs:
-      post_file:
-        description: "Post JSON file to publish"
-        required: true
-        default: "posts/test-post.json"
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Check out repository
@@ -25,24 +19,16 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Find posts to publish
+      - name: Find newly added posts
         id: posts
         shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_POST_FILE: ${{ inputs.post_file }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            FILES="$INPUT_POST_FILE"
-          else
-            FILES=$(git diff --diff-filter=A --name-only HEAD^ HEAD -- 'posts/*.json')
-          fi
-
+          FILES=$(git diff --diff-filter=A --name-only HEAD^ HEAD -- 'posts/*.json')
           echo "files<<EOF" >> "$GITHUB_OUTPUT"
           echo "$FILES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Publish approved posts
+      - name: Publish new posts
         if: steps.posts.outputs.files != ''
         shell: bash
         env:
@@ -53,4 +39,19 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             node scripts/publish-instagram.mjs "$file"
+            image_path=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).image_path" "$file")
+            rm -- "$file" "$image_path"
           done <<< "${{ steps.posts.outputs.files }}"
+
+      - name: Remove published post files
+        if: steps.posts.outputs.files != ''
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A posts img
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Remove published Instagram post files"
+          git push
