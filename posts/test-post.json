@@ -1,0 +1,5 @@
+{
+  "caption": "Instagram APIからのテスト投稿です。",
+  "image_url": "https://example.com/replace-with-public-image.jpg",
+  "status": "draft"
+}
