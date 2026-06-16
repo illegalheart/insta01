@@ -39,8 +39,7 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             node scripts/publish-instagram.mjs "$file"
-            image_path=$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).image_path" "$file")
-            rm -- "$file" "$image_path"
+            node -e "const fs=require('fs'); const file=process.argv[1]; const post=JSON.parse(fs.readFileSync(file,'utf8')); const imagePaths=post.image_paths ?? (post.image_path ? [post.image_path] : []); for (const imagePath of imagePaths) fs.rmSync(imagePath,{force:true}); fs.rmSync(file,{force:true});" "$file"
           done <<< "${{ steps.posts.outputs.files }}"
 
       - name: Remove published post files

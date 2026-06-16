@@ -8,16 +8,20 @@ if (!postFile) {
 
 const post = JSON.parse(fs.readFileSync(postFile, "utf8"));
 
-if (!post.caption || !post.image_path) {
-  throw new Error(`${postFile}: caption and image_path are required.`);
+const imagePaths = post.image_paths ?? (post.image_path ? [post.image_path] : []);
+
+if (!post.caption || !Array.isArray(imagePaths) || imagePaths.length === 0) {
+  throw new Error(`${postFile}: caption and image_path or image_paths are required.`);
 }
 
-if (!post.image_path.startsWith("img/") || post.image_path.includes("..")) {
-  throw new Error(`${postFile}: image_path must point to a file inside img/.`);
-}
+for (const imagePath of imagePaths) {
+  if (!imagePath.startsWith("img/") || imagePath.includes("..")) {
+    throw new Error(`${postFile}: image paths must point to files inside img/.`);
+  }
 
-if (!fs.existsSync(post.image_path)) {
-  throw new Error(`${postFile}: image file does not exist: ${post.image_path}`);
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`${postFile}: image file does not exist: ${imagePath}`);
+  }
 }
 
 const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
@@ -33,8 +37,11 @@ if (!accessToken || !instagramUserId || !apiVersion || !repository || !commitSha
 }
 
 const baseUrl = `https://graph.instagram.com/${apiVersion}`;
-const encodedImagePath = post.image_path.split("/").map(encodeURIComponent).join("/");
-const imageUrl = `https://raw.githubusercontent.com/${repository}/${commitSha}/${encodedImagePath}`;
+
+function rawImageUrl(imagePath) {
+  const encodedImagePath = imagePath.split("/").map(encodeURIComponent).join("/");
+  return `https://raw.githubusercontent.com/${repository}/${commitSha}/${encodedImagePath}`;
+}
 
 async function graphRequest(path, options = {}) {
   const response = await fetch(`${baseUrl}/${path}`, options);
@@ -47,41 +54,74 @@ async function graphRequest(path, options = {}) {
   return result;
 }
 
-console.log(`Publishing ${postFile} with ${imageUrl}`);
+async function createImageContainer(imagePath, isCarouselItem = false) {
+  const imageUrl = rawImageUrl(imagePath);
+  console.log(`Creating media container for ${imageUrl}`);
+  return graphRequest(`${instagramUserId}/media`, {
+    method: "POST",
+    body: new URLSearchParams({
+      image_url: imageUrl,
+      ...(isCarouselItem ? { is_carousel_item: "true" } : { caption: post.caption }),
+      access_token: accessToken
+    })
+  });
+}
 
-const container = await graphRequest(`${instagramUserId}/media`, {
+async function waitForContainer(containerId) {
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const status = await graphRequest(
+      `${containerId}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`
+    );
+
+    if (status.status_code === "FINISHED") {
+      return;
+    }
+
+    if (status.status_code === "ERROR" || status.status_code === "EXPIRED") {
+      throw new Error(`Media container failed: ${JSON.stringify(status)}`);
+    }
+
+    if (attempt === 12) {
+      throw new Error("Timed out waiting for the media container to finish.");
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+}
+
+console.log(`Publishing ${postFile}`);
+
+let publishContainer;
+
+if (imagePaths.length === 1) {
+  publishContainer = await createImageContainer(imagePaths[0]);
+  await waitForContainer(publishContainer.id);
+} else {
+  const childContainers = [];
+
+  for (const imagePath of imagePaths) {
+    const child = await createImageContainer(imagePath, true);
+    await waitForContainer(child.id);
+    childContainers.push(child.id);
+  }
+
+  publishContainer = await graphRequest(`${instagramUserId}/media`, {
   method: "POST",
   body: new URLSearchParams({
-    image_url: imageUrl,
+    media_type: "CAROUSEL",
+    children: childContainers.join(","),
     caption: post.caption,
     access_token: accessToken
   })
 });
 
-for (let attempt = 1; attempt <= 12; attempt += 1) {
-  const status = await graphRequest(
-    `${container.id}?fields=status_code&access_token=${encodeURIComponent(accessToken)}`
-  );
-
-  if (status.status_code === "FINISHED") {
-    break;
-  }
-
-  if (status.status_code === "ERROR" || status.status_code === "EXPIRED") {
-    throw new Error(`Media container failed: ${JSON.stringify(status)}`);
-  }
-
-  if (attempt === 12) {
-    throw new Error("Timed out waiting for the media container to finish.");
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  await waitForContainer(publishContainer.id);
 }
 
 const published = await graphRequest(`${instagramUserId}/media_publish`, {
   method: "POST",
   body: new URLSearchParams({
-    creation_id: container.id,
+    creation_id: publishContainer.id,
     access_token: accessToken
   })
 });
