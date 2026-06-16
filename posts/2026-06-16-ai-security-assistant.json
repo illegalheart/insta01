@@ -1,0 +1,12 @@
+{
+  "status": "approved",
+  "image_paths": [
+    "img/ai-security-assistant-003-01.png",
+    "img/ai-security-assistant-003-02.png",
+    "img/ai-security-assistant-003-03.png",
+    "img/ai-security-assistant-003-04.png",
+    "img/ai-security-assistant-003-05.png",
+    "img/ai-security-assistant-003-06.png"
+  ],
+  "caption": "生成AIは、文章を作るだけの道具ではありません。\n\nうまく使うと、仕事や個人のセキュリティ感覚を高める「守りの相棒」になります。\n\nたとえば、こんな使い方です。\n\n1. 怪しいメールの不審点を確認する\n2. パスワード管理のルールを作る\n3. アプリ権限のリスクを言語化する\n4. アップデート確認リストを作る\n5. 被害時の初動を整理する\n\n大事なのは、AIに秘密情報をそのまま入れないこと。\nメール本文や画面情報を使うときは、名前・会社名・メールアドレス・URL・顧客情報などを伏せてから相談しましょう。\n\nAIは判断を丸投げする相手ではなく、気づきを増やす相手。\n「何が危ないか」を言葉にできるだけで、セキュリティ感覚はかなり上がります。\n\n#生成AI #AI活用 #情報セキュリティ #セキュリティ意識 #業務効率化 #AIリテラシー #ChatGPT"
+}
