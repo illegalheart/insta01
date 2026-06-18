@@ -39,7 +39,7 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             node scripts/publish-instagram.mjs "$file"
-            node -e "const fs=require('fs'); const file=process.argv[1]; const post=JSON.parse(fs.readFileSync(file,'utf8')); const imagePaths=post.image_paths ?? (post.image_path ? [post.image_path] : []); for (const imagePath of imagePaths) fs.rmSync(imagePath,{force:true}); fs.rmSync(file,{force:true});" "$file"
+            node -e "const fs=require('fs'); const file=process.argv[1]; const post=JSON.parse(fs.readFileSync(file,'utf8')); const imagePaths=post.image_paths ?? (post.image_path ? [post.image_path] : []); for (const imagePath of imagePaths) fs.rmSync(imagePath,{force:true}); if (post.video_path) fs.rmSync(post.video_path,{force:true}); fs.rmSync(file,{force:true});" "$file"
           done <<< "${{ steps.posts.outputs.files }}"
 
       - name: Remove published post files
@@ -48,7 +48,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A posts img
+          git add -A posts img videos
           if git diff --cached --quiet; then
             exit 0
           fi
